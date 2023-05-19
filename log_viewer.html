@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/jq-3.6.0/dt-1.13.2/fh-3.3.1/datatables.min.css"/>
+<script type="text/javascript" src="https://cdn.datatables.net/v/dt/jq-3.6.0/dt-1.13.2/fh-3.3.1/datatables.min.js"></script>
+
+</head>
+<body>
+    
+    <h1>LOG Viewer</h1>
+
+    <input type="file" name="readfile" id="readfile" />
+    <table id="table_log" class="display" style="width:100%">
+    </table>
+
+    <script>
+
+        const safeParse = (jsonStr) => {
+            try {
+                return JSON.parse(jsonStr);
+            } catch (e) {
+                console.error(e)
+                return null;
+            }
+        };
+
+        const prettyPrintJson = (jsonObj) => {
+            return '<pre>' + JSON.stringify(jsonObj, null, 2) + '</pre>';
+        }
+
+        $(document).ready(function () {
+            const columns = [
+                {
+                    className: 'dt-control',
+                    orderable: false,
+                    data: null,
+                    defaultContent: '',
+                },
+                { data: 'no' },
+                { data: 'time' },
+                { data: 'trace_id' },
+                { data: 'method' },
+                { data: 'api_path' },
+                { data: 'ip' },
+                { data: 'http_status' },
+                { data: 'severity' },
+                { data: 'elapsed_time' },
+
+                // expanded
+                { data: 'headers', render: prettyPrintJson, visible: false },
+                { data: 'request', render: prettyPrintJson, visible: false },
+                { data: 'response', render: prettyPrintJson, visible: false },
+                { data: 'db_query', visible: false },
+                { data: 'target_endpoints', visible: false },
+            ];
+
+            const format = (data, column) => {
+                return '<tr>' +
+                    '<td>' + column + ':</td>' +
+                    '<td>' +
+                    prettyPrintJson(data[column]) +
+                    '</td>' +
+                    '</tr>';
+            };
+
+            const expandedFormat = (data) => {
+                return (
+                    '<table cellpadding="10" cellspacing="0" border="0" style="padding-left:50px;">' +
+                    format(data, 'headers') +
+                    format(data, 'request') +
+                    format(data, 'response') +
+                    format(data, 'db_query') +
+                    format(data, 'target_endpoints') +
+                    '</table>'
+                );
+            };
+
+            const generateTable = () => {
+
+                return $('#table_log').DataTable({
+                    // paging: false,
+                    // ordering: false,
+                    // info: false,
+                    fixedHeader: true,
+                    columns,
+                });
+            };
+
+            let table = generateTable();
+
+            let file = document.getElementById("readfile");
+            file.addEventListener("change", function () {
+                const reader = new FileReader();
+                reader.onload = function (progressEvent) {
+                    const lines = this.result.split('\n').filter((v) => v).map(safeParse).map((v, idx) => ({ no: idx + 1, ...v, }));
+
+                    table.clear();
+                    $('#table_log thead').empty();
+
+                    // Generate datatable headers dynamically
+                    const headerRow = $('<tr></tr>');
+                    const headers = columns.filter((v) => v.visible !== false).map((v) => v.data);
+                    for (let i = 0; i < headers.length; i++) {
+                        headerRow.append($('<th>' + headers[i] + '</th>'));
+                    }
+                    $('#table_log thead').append(headerRow);
+                    table.rows.add(lines);
+                    table.draw();
+
+                    // table = generateTable();
+                };
+                reader.readAsText(this.files[0]);
+            });
+
+            // Add event listener for opening and closing details
+            $('#table_log tbody').on('click', 'td.dt-control', function () {
+                var tr = $(this).closest('tr');
+                var row = table.row(tr);
+
+                if (row.child.isShown()) {
+                    // This row is already open - close it
+                    row.child.hide();
+                    tr.removeClass('shown');
+                } else {
+                    // Open this row
+                    row.child(expandedFormat(row.data())).show();
+                    tr.addClass('shown');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
