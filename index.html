@@ -6,14 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/v/dt/jq-3.6.0/dt-1.13.2/fh-3.3.1/datatables.min.css"/>
-<script type="text/javascript" src="https://cdn.datatables.net/v/dt/jq-3.6.0/dt-1.13.2/fh-3.3.1/datatables.min.js"></script>
-
+    <script type="text/javascript" src="https://cdn.datatables.net/v/dt/jq-3.6.0/dt-1.13.2/fh-3.3.1/datatables.min.js"></script>
 </head>
+<style>
+    pre {
+        white-space: pre-wrap;
+        padding: 8px;
+        margin: 10px 0;
+        word-break: break-all;
+        word-wrap: break-word;
+        background-color: #ffffff;
+        border: 1px solid #c3c3c3;
+        border-radius: 4px;
+        overflow: auto;
+        max-height: 600px;
+    }
+</style>
 <body>
     
     <h1>LOG Viewer</h1>
 
-    <input type="file" name="readfile" id="readfile" />
+    <div style="margin-bottom: 20px;">
+        <input type="file" name="readfile" id="readfile" />
+    </div>
     <table id="table_log" class="display" style="width:100%">
     </table>
 
@@ -29,6 +44,9 @@
         };
 
         const prettyPrintJson = (jsonObj) => {
+            if (Array.isArray(jsonObj)) {
+                return jsonObj.map(prettyPrintJson).join('');
+            }
             return '<pre>' + JSON.stringify(jsonObj, null, 2) + '</pre>';
         }
 
@@ -49,13 +67,6 @@
                 { data: 'http_status' },
                 { data: 'severity' },
                 { data: 'elapsed_time' },
-
-                // expanded
-                { data: 'headers', render: prettyPrintJson, visible: false },
-                { data: 'request', render: prettyPrintJson, visible: false },
-                { data: 'response', render: prettyPrintJson, visible: false },
-                { data: 'db_query', visible: false },
-                { data: 'target_endpoints', visible: false },
             ];
 
             const format = (data, column) => {
@@ -79,18 +90,13 @@
                 );
             };
 
-            const generateTable = () => {
-
-                return $('#table_log').DataTable({
-                    // paging: false,
-                    // ordering: false,
-                    // info: false,
-                    fixedHeader: true,
-                    columns,
-                });
-            };
-
-            let table = generateTable();
+            let table = $('#table_log').DataTable({
+                lengthMenu: [10, 25, 50, 100, 200, 500, 1000],
+                pageLength: 100,
+                ordering: true,
+                fixedHeader: true,
+                columns,
+            });
 
             let file = document.getElementById("readfile");
             file.addEventListener("change", function () {
@@ -99,19 +105,12 @@
                     const lines = this.result.split('\n').filter((v) => v).map(safeParse).map((v, idx) => ({ no: idx + 1, ...v, }));
 
                     table.clear();
-                    $('#table_log thead').empty();
 
-                    // Generate datatable headers dynamically
-                    const headerRow = $('<tr></tr>');
-                    const headers = columns.filter((v) => v.visible !== false).map((v) => v.data);
-                    for (let i = 0; i < headers.length; i++) {
-                        headerRow.append($('<th>' + headers[i] + '</th>'));
-                    }
-                    $('#table_log thead').append(headerRow);
+                    table.columns().header().each((header, index) => {
+                        $(header).text(columns[index].data);
+                    });
                     table.rows.add(lines);
                     table.draw();
-
-                    // table = generateTable();
                 };
                 reader.readAsText(this.files[0]);
             });
